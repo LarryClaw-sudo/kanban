@@ -125,7 +125,7 @@ def require_auth(f):
 
 # ── AUTH ROUTES ───────────────────────────────────────────────────────────────
 
-@app.route('/auth/register', methods=['POST'])
+@app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.get_json() or {}
     password = data.get('password', '')
@@ -171,7 +171,7 @@ def register():
 
     return jsonify({'token': token, 'user_id': user_id})
 
-@app.route('/auth/login', methods=['POST'])
+@app.route('/api/auth/login', methods=['POST'])
 def login():
     data = request.get_json() or {}
     password = data.get('password', '')
@@ -197,7 +197,7 @@ def login():
 
 # ── BOARD ROUTE ───────────────────────────────────────────────────────────────
 
-@app.route('/board', methods=['GET'])
+@app.route('/api/board', methods=['GET'])
 @require_auth
 def get_board():
     db = get_db()
@@ -246,7 +246,7 @@ def get_board():
 
 # ── CARD ROUTES ────────────────────────────────────────────────────────────────
 
-@app.route('/cards', methods=['POST'])
+@app.route('/api/cards', methods=['POST'])
 @require_auth
 def create_card():
     db = get_db()
@@ -290,7 +290,7 @@ def create_card():
     db.commit()
     return jsonify({'id': card_id, 'status': 'ok'})
 
-@app.route('/cards/<card_id>', methods=['PUT'])
+@app.route('/api/cards/<card_id>', methods=['PUT'])
 @require_auth
 def update_card(card_id):
     db = get_db()
@@ -336,7 +336,7 @@ def update_card(card_id):
 
     return jsonify({'status': 'ok'})
 
-@app.route('/cards/<card_id>', methods=['DELETE'])
+@app.route('/api/cards/<card_id>', methods=['DELETE'])
 @require_auth
 def delete_card(card_id):
     db = get_db()
@@ -348,7 +348,7 @@ def delete_card(card_id):
 
 # ── COLUMN ROUTES ─────────────────────────────────────────────────────────────
 
-@app.route('/columns', methods=['POST'])
+@app.route('/api/columns', methods=['POST'])
 @require_auth
 def create_column():
     db = get_db()
@@ -374,7 +374,7 @@ def create_column():
 
     return jsonify({'id': col_id})
 
-@app.route('/columns/<col_id>', methods=['PUT'])
+@app.route('/api/columns/<col_id>', methods=['PUT'])
 @require_auth
 def update_column(col_id):
     db = get_db()
@@ -388,7 +388,7 @@ def update_column(col_id):
     db.commit()
     return jsonify({'status': 'ok'})
 
-@app.route('/columns/<col_id>', methods=['DELETE'])
+@app.route('/api/columns/<col_id>', methods=['DELETE'])
 @require_auth
 def delete_column(col_id):
     db = get_db()
@@ -400,7 +400,7 @@ def delete_column(col_id):
 
 # ── JOB ROUTES (for agent polling) ─────────────────────────────────────────────
 
-@app.route('/jobs/pending', methods=['GET'])
+@app.route('/api/jobs/pending', methods=['GET'])
 @require_auth
 def get_pending_jobs():
     """Agent polls this to see unclaimed jobs."""
@@ -429,7 +429,7 @@ def get_pending_jobs():
         } for j in jobs]
     })
 
-@app.route('/jobs/claim', methods=['POST'])
+@app.route('/api/jobs/claim', methods=['POST'])
 @require_auth
 def claim_job():
     """Agent claims a job before working on it."""
@@ -462,7 +462,7 @@ def claim_job():
     db.commit()
     return jsonify({'status': 'ok', 'job_id': job_id})
 
-@app.route('/jobs/complete', methods=['POST'])
+@app.route('/api/jobs/complete', methods=['POST'])
 @require_auth
 def complete_job():
     """Agent marks a job as done."""
@@ -499,7 +499,7 @@ def complete_job():
 
 # ── HEALTH ────────────────────────────────────────────────────────────────────
 
-@app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'time': int(time.time())})
 
