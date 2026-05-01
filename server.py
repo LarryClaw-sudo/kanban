@@ -22,6 +22,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'kanban.db')
 PORT = int(os.environ.get('PORT', 9002))
 
+# Agent account configuration
+AGENT_EMAIL = 'agent@kavilabs.dev'
+AGENT_PASSWORD = 'agent-kanban-18190'
+# Pre-computed bcrypt hash for the agent password
+AGENT_PASSWORD_HASH = '$2b$12$ThcDBHGCrUqXQvH1.zujQ.bd/aLurX3ezYggwb4Xmoi7wmxasguwu'
+
 # ── DB ────────────────────────────────────────────────────────────────────────
 
 def get_db():
@@ -42,6 +48,7 @@ def init_db():
     db.executescript('''
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
+            email TEXT,
             password_hash TEXT NOT NULL,
             created_at INTEGER NOT NULL
         );
@@ -73,7 +80,11 @@ def init_db():
             audio_count INTEGER NOT NULL DEFAULT 0,
             position INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
+            updated_at INTEGER NOT NULL,
+            comments TEXT NOT NULL DEFAULT '[]',
+            labels TEXT NOT NULL DEFAULT '[]',
+            priority TEXT NOT NULL DEFAULT 'medium',
+            due_date TEXT
         );
         CREATE TABLE IF NOT EXISTS jobs (
             id TEXT PRIMARY KEY,
@@ -92,15 +103,83 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
     ''')
     db.commit()
+
+    # Add new columns to CARDS table if they don't exist (for existing databases)
+    try:
+        db.execute("ALTER TABLE cards ADD COLUMN comments TEXT NOT NULL DEFAULT '[]'")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    try:
+        db.execute("ALTER TABLE cards ADD COLUMN labels TEXT NOT NULL DEFAULT '[]'")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    try:
+        db.execute("ALTER TABLE cards ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    try:
+        db.execute("ALTER TABLE cards ADD COLUMN due_date TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    db.commit()
+
+    # Ensure agent account exists with the correct password
+    existing_agent = db.execute(
+        'SELECT id FROM users WHERE email = ?',
+        (AGENT_EMAIL,)
+    ).fetchone()
+
+    if not existing_agent:
+        # Create agent user with bcrypt hash
+        agent_id = str(uuid.uuid4())
+        now = int(time.time())
+        db.execute(
+            'INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)',
+            (agent_id, AGENT_EMAIL, AGENT_PASSWORD_HASH, now)
+        )
+        db.commit()
+
+        # Create default columns for agent
+        default_cols = [
+            ('ideas', 'Ideas', '#8b7cf8', 0),
+            ('todo', 'To Do', '#ff6b8a', 1),
+            ('doing', 'In Progress', '#ffd060', 2),
+            ('done', 'Done', '#5de8a0', 3),
+        ]
+        for col_id, title, color, pos in default_cols:
+            db.execute(
+                'INSERT INTO columns (id, user_id, title, color, position, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                (col_id, agent_id, title, color, pos, now)
+            )
+        db.commit()
+
     db.close()
 
 # ── AUTH HELPERS ──────────────────────────────────────────────────────────────
-
 def hash_password(pw: str) -> str:
+    """Legacy hash function for backward compatibility."""
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def generate_token() -> str:
     return secrets.token_urlsafe(32)
+
+def check_password(password: str, stored_hash: str) -> bool:
+    """Check password against stored hash. Supports both bcrypt and legacy SHA256."""
+    if stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$') or stored_hash.startswith('$2y$'):
+        # bcrypt hash
+        try:
+            import bcrypt
+            return bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
+        except ImportError:
+            # bcrypt not available, fall back to legacy comparison
+            return hash_password(password) == stored_hash
+    else:
+        # Legacy SHA256 hash
+        return hash_password(password) == stored_hash
 
 def require_auth(f):
     @wraps(f)
@@ -129,6 +208,8 @@ def require_auth(f):
 def register():
     data = request.get_json() or {}
     password = data.get('password', '')
+    email = data.get('email', '')
+
     if len(password) < 8:
         return jsonify({'error': 'Password must be at least 8 characters'}), 400
 
@@ -138,21 +219,27 @@ def register():
         return jsonify({'error': 'An account already exists. Please sign in.'}), 409
 
     user_id = str(uuid.uuid4())
-    password_hash = hash_password(password)
     now = int(time.time())
 
+    # Use bcrypt for new users if available, otherwise fall back to legacy
+    try:
+        import bcrypt
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode()
+    except ImportError:
+        password_hash = hash_password(password)
+
     db.execute(
-        'INSERT INTO users (id, password_hash, created_at) VALUES (?, ?, ?)',
-        (user_id, password_hash, now)
+        'INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)',
+        (user_id, email, password_hash, now)
     )
     db.commit()
 
     # Create default columns for new user
     default_cols = [
-        ('ideas',    'Ideas',       '#8b7cf8', 0),
-        ('todo',     'To Do',       '#ff6b8a', 1),
-        ('doing',    'In Progress', '#ffd060', 2),
-        ('done',     'Done',        '#5de8a0', 3),
+        ('ideas', 'Ideas', '#8b7cf8', 0),
+        ('todo', 'To Do', '#ff6b8a', 1),
+        ('doing', 'In Progress', '#ffd060', 2),
+        ('done', 'Done', '#5de8a0', 3),
     ]
     for col_id, title, color, pos in default_cols:
         db.execute(
@@ -175,16 +262,27 @@ def register():
 def login():
     data = request.get_json() or {}
     password = data.get('password', '')
+    email = data.get('email', None)
 
     db = get_db()
-    user = db.execute('SELECT id, password_hash FROM users LIMIT 1').fetchone()
-    if not user or user['password_hash'] != hash_password(password):
+    user = None
+
+    if email:
+        # Backward compatible: look up by email
+        user = db.execute('SELECT id, email, password_hash FROM users WHERE email = ?', (email,)).fetchone()
+    else:
+        # New mode: look up the single existing user (no email required)
+        user = db.execute('SELECT id, email, password_hash FROM users LIMIT 1').fetchone()
+
+    if not user:
+        return jsonify({'error': 'Invalid credentials'}), 401
+
+    if not check_password(password, user['password_hash']):
         return jsonify({'error': 'Invalid password'}), 401
 
     now = int(time.time())
     token = generate_token()
     expires_at = now + (30 * 24 * 3600)
-
     # Rotate token
     db.execute('DELETE FROM auth_tokens WHERE user_id = ?', (user['id'],))
     db.execute(
@@ -197,11 +295,34 @@ def login():
 
 # ── BOARD ROUTE ───────────────────────────────────────────────────────────────
 
+def init_default_board(db, uid):
+    """Create 4 default columns if user has none."""
+    existing = db.execute(
+        'SELECT COUNT(*) FROM columns WHERE user_id = ?', (uid,)
+    ).fetchone()[0]
+    if existing > 0:
+        return
+    defaults = [
+        ('Ideas', '#8b7cf8'),
+        ('To Do', '#ff6b8a'),
+        ('In Progress', '#ffd060'),
+        ('Done', '#5de8a0'),
+    ]
+    now = int(time.time())
+    for pos, (title, color) in enumerate(defaults):
+        col_id = str(uuid.uuid4())[:8]  # unique per user, no collision
+        db.execute(
+            'INSERT INTO columns (id, user_id, title, color, position, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+            (col_id, uid, title, color, pos, now)
+        )
+
 @app.route('/api/board', methods=['GET'])
 @require_auth
 def get_board():
     db = get_db()
     uid = g.user_id
+
+    init_default_board(db, uid)
 
     columns = db.execute(
         'SELECT id, title, color FROM columns WHERE user_id = ? ORDER BY position',
@@ -212,7 +333,8 @@ def get_board():
     for col in columns:
         cards = db.execute(
             '''SELECT id, title, description, is_job, agent_name, agent_status,
-                      agent_instructions, attachments, audio_count, position, created_at, updated_at, column_id
+                      agent_instructions, attachments, audio_count, position, created_at, updated_at, column_id,
+                      comments, labels, priority, due_date
                FROM cards WHERE user_id = ? AND column_id = ? ORDER BY position''',
             (uid, col['id'])
         ).fetchall()
@@ -233,6 +355,10 @@ def get_board():
                 'created_at': c['created_at'],
                 'updated_at': c['updated_at'],
                 'column_id': c['column_id'],
+                'comments': json.loads(c['comments'] or '[]'),
+                'labels': json.loads(c['labels'] or '[]'),
+                'priority': c['priority'] or 'medium',
+                'due_date': c['due_date'],
             })
 
         result.append({
@@ -253,7 +379,6 @@ def create_card():
     uid = g.user_id
     data = request.get_json() or {}
     now = int(time.time())
-
     card_id = 'c' + str(uuid.uuid4())[:8]
     title = data.get('title', '')
     description = data.get('description', '')
@@ -262,6 +387,10 @@ def create_card():
     agent_instructions = data.get('agent_instructions', '')
     attachments = json.dumps(data.get('attachments', []))
     audio_count = data.get('audio_count', 0)
+    comments = json.dumps(data.get('comments', []))
+    labels = json.dumps(data.get('labels', []))
+    priority = data.get('priority', 'medium')
+    due_date = data.get('due_date', None)
 
     # Position = end of column
     pos_row = db.execute(
@@ -270,21 +399,19 @@ def create_card():
     ).fetchone()
     position = pos_row['next_pos']
 
-    db.execute('''
-        INSERT INTO cards (id, user_id, column_id, title, description, is_job, agent_instructions,
-                          attachments, audio_count, position, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-        (card_id, uid, column_id, title, description, is_job, agent_instructions,
-         attachments, audio_count, position, now, now)
+    db.execute('''INSERT INTO cards (id, user_id, column_id, title, description, is_job, agent_instructions,
+                          attachments, audio_count, position, created_at, updated_at, comments, labels, priority, due_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (card_id, uid, column_id, title, description, is_job, agent_instructions,
+                 attachments, audio_count, position, now, now, comments, labels, priority, due_date)
     )
 
     # If it's a job, also create a job record
     if is_job:
         job_id = 'j' + str(uuid.uuid4())[:8]
-        db.execute('''
-            INSERT INTO jobs (id, card_id, user_id, status, instructions, created_at)
-            VALUES (?, ?, ?, 'pending', ?, ?)''',
-            (job_id, card_id, uid, agent_instructions, now)
+        db.execute('''INSERT INTO jobs (id, card_id, user_id, status, instructions, created_at)
+                      VALUES (?, ?, ?, 'pending', ?, ?)''',
+                   (job_id, card_id, uid, agent_instructions, now)
         )
 
     db.commit()
@@ -327,6 +454,23 @@ def update_card(card_id):
         updates.append('agent_status = ?')
         params.append(data['agent_status'])
 
+    # Handle new card fields
+    if 'comments' in data:
+        updates.append('comments = ?')
+        params.append(json.dumps(data['comments']))
+
+    if 'labels' in data:
+        updates.append('labels = ?')
+        params.append(json.dumps(data['labels']))
+
+    if 'priority' in data:
+        updates.append('priority = ?')
+        params.append(data['priority'])
+
+    if 'due_date' in data:
+        updates.append('due_date = ?')
+        params.append(data['due_date'])
+
     updates.append('updated_at = ?')
     params.append(now)
     params.append(card_id)
@@ -345,6 +489,57 @@ def delete_card(card_id):
     db.execute('DELETE FROM jobs WHERE card_id = ?', (card_id,))
     db.commit()
     return jsonify({'status': 'ok'})
+
+@app.route('/api/cards/<card_id>/comments', methods=['GET'])
+@require_auth
+def get_card_comments(card_id):
+    """Get all comments for a card."""
+    db = get_db()
+    uid = g.user_id
+
+    card = db.execute('SELECT comments FROM cards WHERE id = ? AND user_id = ?', (card_id, uid)).fetchone()
+    if not card:
+        return jsonify({'error': 'Card not found'}), 404
+
+    comments = json.loads(card['comments'] or '[]')
+    return jsonify({'comments': comments})
+
+@app.route('/api/cards/<card_id>/comments', methods=['POST'])
+@require_auth
+def add_card_comment(card_id):
+    """Add a comment to a card. Accepts {"content": "...", "author": "..."}."""
+    db = get_db()
+    uid = g.user_id
+    data = request.get_json() or {}
+    content = data.get('content', '')
+    author = data.get('author', 'User')
+
+    if not content:
+        return jsonify({'error': 'Comment content is required'}), 400
+
+    card = db.execute('SELECT comments FROM cards WHERE id = ? AND user_id = ?', (card_id, uid)).fetchone()
+    if not card:
+        return jsonify({'error': 'Card not found'}), 404
+
+    now = int(time.time())
+    comments = json.loads(card['comments'] or '[]')
+
+    # Append new comment
+    new_comment = {
+        'content': content,
+        'timestamp': now,
+        'author': author
+    }
+    comments.append(new_comment)
+
+    # Update card
+    db.execute(
+        'UPDATE cards SET comments = ?, updated_at = ? WHERE id = ?',
+        (json.dumps(comments), now, card_id)
+    )
+    db.commit()
+
+    return jsonify({'status': 'ok', 'comment': new_comment, 'comments': comments})
 
 # ── COLUMN ROUTES ─────────────────────────────────────────────────────────────
 

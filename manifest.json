@@ -1,10 +1,10 @@
 {
-  "name": "Kavi Labs Kanban",
-  "short_name": "Kanban",
-  "description": "Super intuitive drag-and-drop kanban board for tasks, files, and voice memos.",
+  "name": "Kavi",
+  "short_name": "Kavi",
+  "description": "Your second brain. Kanban board with autonomous agent job queue.",
   "start_url": "/index.html",
   "display": "standalone",
-  "background_color": "#0D0D10",
-  "theme_color": "#7C6AFF",
+  "background_color": "#080b14",
+  "theme_color": "#4f8ef7",
   "icons": []
 }
