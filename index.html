@@ -1,0 +1,1696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Kavi Labs — Kanban</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0D0D10;
+      --surface: #16161B;
+      --surface2: #1E1E25;
+      --surface3: #26262F;
+      --border: #2E2E3A;
+      --accent: #7C6AFF;
+      --accent-dim: rgba(124,106,255,0.15);
+      --accent2: #FF6B6B;
+      --accent3: #6BFFD4;
+      --text: #EDEDEF;
+      --text-muted: #8888A0;
+      --text-dim: #55556A;
+      --danger: #FF4757;
+      --warning: #FFD93D;
+      --success: #6BCB77;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* ═══════════════════════════════════════
+       LAYOUT
+    ═══════════════════════════════════════ */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    /* HEADER */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--text);
+    }
+    .logo span { color: var(--accent); }
+
+    .header-spacer { flex: 1; }
+
+    .header-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .header-btn:hover { background: var(--surface3); border-color: var(--accent); }
+    .header-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .header-btn.primary:hover { background: #6a58f0; }
+
+    /* BOARD AREA */
+    #board-wrapper {
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 20px;
+      display: flex;
+      gap: 16px;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+      -webkit-overflow-scrolling: touch;
+    }
+    #board-wrapper::-webkit-scrollbar { height: 4px; }
+    #board-wrapper::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* COLUMNS */
+    .column {
+      flex: 0 0 300px;
+      min-width: 280px;
+      max-width: 320px;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      scroll-snap-align: start;
+      max-height: calc(100vh - 130px);
+      max-height: calc(100dvh - 130px);
+    }
+
+    .col-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .col-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .col-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      flex: 1;
+    }
+    .col-count {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      background: var(--surface3);
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+
+    /* ADD COLUMN BUTTON */
+    .add-column-btn {
+      flex: 0 0 200px;
+      min-width: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: transparent;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: 60px;
+      scroll-snap-align: start;
+      align-self: flex-start;
+      padding: 20px;
+    }
+    .add-column-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+    /* CARDS CONTAINER */
+    .cards {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    .cards::-webkit-scrollbar { width: 3px; }
+    .cards::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .cards.drag-over {
+      background: var(--accent-dim);
+      border-radius: var(--radius-sm);
+    }
+
+    /* CARD */
+    .card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      cursor: grab;
+      transition: transform 0.1s, box-shadow 0.15s, border-color 0.15s;
+      position: relative;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .card:active { cursor: grabbing; }
+    .card.dragging {
+      opacity: 0.4;
+      transform: scale(0.97);
+    }
+    .card.drag-ghost {
+      transform: rotate(2deg) scale(1.03);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+      border-color: var(--accent);
+      z-index: 9999;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.45;
+      color: var(--text);
+      margin-bottom: 8px;
+      word-break: break-word;
+    }
+    .card-title.placeholder {
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    .card-preview {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 8px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    .card-attachments {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--surface3);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .card-badge.file { background: rgba(124,106,255,0.12); color: #a99aff; border-color: rgba(124,106,255,0.2); }
+    .card-badge.audio { background: rgba(255,107,107,0.12); color: #ff9999; border-color: rgba(255,107,107,0.2); }
+    .card-badge.image { background: rgba(107,255,212,0.12); color: #99ffdd; border-color: rgba(107,255,212,0.2); }
+    .card-badge.text { background: rgba(255,217,61,0.12); color: #ffdd88; border-color: rgba(255,217,61,0.2); }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .card-date {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .card-delete {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: all 0.15s;
+    }
+    .card:hover .card-delete { opacity: 1; }
+    .card-delete:hover { background: rgba(255,71,87,0.2); color: var(--danger); }
+
+    /* ADD CARD BUTTON */
+    .add-card-btn {
+      width: 100%;
+      padding: 10px;
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-dim);
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .add-card-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+    /* ═══════════════════════════════════════
+       DROP ZONE OVERLAY
+    ═══════════════════════════════════════ */
+    #drop-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(124,106,255,0.08);
+      border: 3px dashed var(--accent);
+      border-radius: var(--radius);
+      z-index: 9998;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: none;
+      margin: 20px;
+    }
+    #drop-overlay.visible { display: flex; }
+    #drop-overlay .drop-icon { font-size: 48px; }
+    #drop-overlay .drop-text { font-size: 20px; font-weight: 600; color: var(--accent); }
+    #drop-overlay .drop-sub { font-size: 13px; color: var(--text-muted); }
+
+    /* ═══════════════════════════════════════
+       MODALS
+    ═══════════════════════════════════════ */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(8px);
+      z-index: 10000;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 0;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius) var(--radius) 0 0;
+      width: 100%;
+      max-width: 600px;
+      padding: 24px;
+      max-height: 90vh;
+      overflow-y: auto;
+      animation: slideUp 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-handle {
+      width: 36px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 0 auto 20px;
+    }
+
+    .modal h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--text);
+    }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus { border-color: var(--accent); }
+    .form-group textarea { resize: vertical; min-height: 100px; }
+
+    /* ═══════════════════════════════════════
+       FILE DROP AREA IN MODAL
+    ═══════════════════════════════════════ */
+    .file-drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-sm);
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--surface2);
+    }
+    .file-drop-zone:hover,
+    .file-drop-zone.drag-active {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .file-drop-zone input { display: none; }
+    .file-drop-zone .dz-icon { font-size: 28px; margin-bottom: 8px; }
+    .file-drop-zone .dz-text { font-size: 13px; color: var(--text-muted); }
+    .file-drop-zone .dz-text span { color: var(--accent); }
+
+    /* ATTACHMENTS LIST */
+    .attachments-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .attachment-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text);
+      max-width: 200px;
+    }
+    .attachment-chip .chip-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .attachment-chip .chip-remove {
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1;
+      padding: 0 2px;
+    }
+    .attachment-chip .chip-remove:hover { color: var(--danger); }
+
+    /* AUDIO RECORD */
+    .audio-section { margin-top: 16px; }
+    .record-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+      width: 100%;
+    }
+    .record-btn:hover { border-color: var(--accent); }
+    .record-btn.recording {
+      border-color: var(--danger);
+      background: rgba(255,71,87,0.1);
+      color: var(--danger);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .record-btn .mic-icon { font-size: 18px; }
+
+    .audio-waves {
+      height: 40px;
+      background: var(--surface2);
+      border-radius: var(--radius-sm);
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 3px;
+      overflow: hidden;
+    }
+    .wave-bar {
+      width: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      height: 8px;
+      transition: height 0.05s;
+    }
+
+    .audio-player {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+    }
+    .audio-player audio { flex: 1; height: 36px; width: 100%; }
+    .audio-player audio::-webkit-media-controls-panel { background: var(--surface3); }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: flex-end;
+    }
+    .btn {
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      transition: all 0.15s;
+    }
+    .btn.ghost { background: transparent; color: var(--text-muted); }
+    .btn.ghost:hover { background: var(--surface2); color: var(--text); }
+    .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+    .btn.danger:hover { background: #e63e4d; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: #6a58f0; }
+
+    /* ═══════════════════════════════════════
+       CONTEXT MENU
+    ═══════════════════════════════════════ */
+    .context-menu {
+      position: fixed;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow);
+      z-index: 10001;
+      min-width: 160px;
+      display: none;
+      overflow: hidden;
+    }
+    .context-menu.open { display: block; }
+    .context-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .context-item:hover { background: var(--surface3); }
+    .context-item.danger { color: var(--danger); }
+    .context-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ═══════════════════════════════════════
+       KEYBOARD SHORTCUTS HINT
+    ═══════════════════════════════════════ */
+    #shortcuts-hint {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--text-dim);
+      z-index: 50;
+      display: flex;
+      gap: 12px;
+    }
+    #shortcuts-hint kbd {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: inherit;
+      font-size: 10px;
+    }
+
+    /* ═══════════════════════════════════════
+       TOAST
+    ═══════════════════════════════════════ */
+    #toast {
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      box-shadow: var(--shadow);
+      z-index: 10002;
+      opacity: 0;
+      transition: all 0.25s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ═══════════════════════════════════════
+       RESPONSIVE — PHONE
+    ═══════════════════════════════════════ */
+    @media (max-width: 600px) {
+      #shortcuts-hint { display: none; }
+      .column { flex: 0 0 85vw; min-width: 85vw; max-width: 85vw; }
+      .add-column-btn { flex: 0 0 70vw; min-width: 70vw; }
+      .modal { max-height: 85vh; border-radius: var(--radius) var(--radius) 0 0; }
+    }
+
+    /* ═══════════════════════════════════════
+       DESKTOP ENHANCEMENTS
+    ═══════════════════════════════════════ */
+    @media (min-width: 900px) {
+      .column { flex: 0 0 280px; }
+    }
+
+    /* SCROLL TO SHOW MORE COLUMNS */
+    .scroll-fade-right {
+      position: relative;
+    }
+    .scroll-fade-right::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 40px;
+      background: linear-gradient(to right, transparent, var(--bg));
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <header id="header">
+    <div class="logo">Kavi<span>labs</span> Kanban</div>
+    <div class="header-spacer"></div>
+    <button class="header-btn primary" id="add-card-header-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Task
+    </button>
+  </header>
+
+  <!-- Board -->
+  <div id="board-wrapper">
+    <!-- Columns injected by JS -->
+  </div>
+
+  <!-- Global drop overlay -->
+  <div id="drop-overlay">
+    <div class="drop-icon">&#128193;</div>
+    <div class="drop-text">Drop to add a task</div>
+    <div class="drop-sub">File, text note, or voice memo</div>
+  </div>
+</div>
+
+<!-- ════════════════════ MODALS ════════════════════ -->
+
+<!-- Add/Edit Card Modal -->
+<div class="modal-backdrop" id="card-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="modal-title">New Task</h2>
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" id="card-title-input" placeholder="What needs to get done?" />
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="card-desc-input" placeholder="Details, context, links..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Column</label>
+      <select id="card-col-select"></select>
+    </div>
+    <div class="form-group">
+      <label>Attachments</label>
+      <div class="file-drop-zone" id="file-drop-zone">
+        <div class="dz-icon">&#128206;</div>
+        <div class="dz-text">Drop files here or <span>click to browse</span></div>
+        <div class="dz-sub" style="font-size:11px;color:var(--text-dim);margin-top:4px;">Images, PDFs, audio, anything</div>
+        <input type="file" id="file-input" multiple />
+      </div>
+      <div class="attachments-list" id="attachments-list"></div>
+    </div>
+    <div class="audio-section">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Voice Memo</label>
+      <button class="record-btn" id="record-btn">
+        <span class="mic-icon">&#127908;</span>
+        <span id="record-label">Record Voice Memo</span>
+      </button>
+      <div class="audio-waves" id="audio-waves" style="display:none;"></div>
+      <div id="audio-players"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="modal-cancel">Cancel</button>
+      <button class="btn danger" id="modal-delete" style="display:none;">Delete</button>
+      <button class="btn primary" id="modal-save">Save Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Column Modal -->
+<div class="modal-backdrop" id="col-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>New Column</h2>
+    <div class="form-group">
+      <label>Column Name</label>
+      <input type="text" id="col-name-input" placeholder="e.g. In Progress, Done, Backlog..." />
+    </div>
+    <div class="form-group">
+      <label>Color</label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="col-color-btn" data-color="#7C6AFF" style="width:32px;height:32px;border-radius:50%;border:3px solid #7C6AFF;background:#7C6AFF;cursor:pointer;"></button>
+        <button class="col-color-btn" data-color="#FF6B6B" style="width:32px;height:32px;border-radius:50%;border:3px solid #2a2a35;background:#FF6B6B;cursor:pointer;"></button>
+        <button class="col-color-btn" data-color="#6BFFD4" style="width:32px;height:32px;border-radius:50%;border:3px solid #2a2a35;background:#6BFFD4;cursor:pointer;"></button>
+        <button class="col-color-btn" data-color="#FFD93D" style="width:32px;height:32px;border-radius:50%;border:3px solid #2a2a35;background:#FFD93D;cursor:pointer;"></button>
+        <button class="col-color-btn" data-color="#6BCB77" style="width:32px;height:32px;border-radius:50%;border:3px solid #2a2a35;background:#6BCB77;cursor:pointer;"></button>
+        <button class="col-color-btn" data-color="#FF9F43" style="width:32px;height:32px;border-radius:50%;border:3px solid #2a2a35;background:#FF9F43;cursor:pointer;"></button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="col-modal-cancel">Cancel</button>
+      <button class="btn primary" id="col-modal-save">Add Column</button>
+    </div>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div class="context-menu" id="context-menu">
+  <div class="context-item" data-action="edit">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    Edit
+  </div>
+  <div class="context-item" data-action="move-left">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Move Left
+  </div>
+  <div class="context-item" data-action="move-right">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+    Move Right
+  </div>
+  <div class="context-sep"></div>
+  <div class="context-item danger" data-action="delete">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    Delete
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Shortcuts -->
+<div id="shortcuts-hint">
+  <span><kbd>N</kbd> new task</span>
+  <span><kbd>D</kbd> drop files anywhere</span>
+  <span><kbd>R</kbd> record voice</span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+const DEFAULT_COLS = [
+  { id: 'ideas',    title: 'Ideas',     color: '#7C6AFF', cards: [] },
+  { id: 'todo',     title: 'To Do',     color: '#FF6B6B', cards: [] },
+  { id: 'doing',    title: 'In Progress', color: '#FFD93D', cards: [] },
+  { id: 'done',     title: 'Done',      color: '#6BCB77', cards: [] },
+];
+
+let state = {
+  columns: [],
+  editingCardId: null,
+  editingColId: null,
+  newColColor: '#7C6AFF',
+  pendingFiles: [],   // { file, dataUrl }
+  pendingAudios: [],  // { blob, url }
+  draggingCard: null,
+  draggingFromCol: null,
+};
+
+// ═══════════════════════════════════════════════════════════
+// PERSIST
+// ═══════════════════════════════════════════════════════════
+function saveState() {
+  try {
+    localStorage.setItem('kavi-kanban-v1', JSON.stringify(state.columns));
+  } catch(e) { console.warn('Save failed:', e); }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('kavi-kanban-v1');
+    if (raw) {
+      state.columns = JSON.parse(raw);
+    } else {
+      state.columns = JSON.parse(JSON.stringify(DEFAULT_COLS));
+    }
+  } catch(e) {
+    state.columns = JSON.parse(JSON.stringify(DEFAULT_COLS));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUDIO RECORDING
+// ═══════════════════════════════════════════════════════════
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingTimer = null;
+let recordingStart = 0;
+
+const recordBtn = document.getElementById('record-btn');
+const recordLabel = document.getElementById('record-label');
+const audioWaves = document.getElementById('audio-waves');
+const audioPlayers = document.getElementById('audio-players');
+
+// Build wave bars
+for (let i = 0; i < 30; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'wave-bar';
+  audioWaves.appendChild(bar);
+}
+
+function startRecording() {
+  if (!navigator.mediaDevices) {
+    showToast('Microphone not available on this device');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      audioChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        state.pendingAudios.push({ blob, url });
+        renderAudioPlayers();
+        showToast('Voice memo saved');
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorder.start();
+      recordingStart = Date.now();
+      recordBtn.classList.add('recording');
+      recordLabel.textContent = 'Recording... Tap to stop';
+      audioWaves.style.display = 'flex';
+      animateWaves();
+    })
+    .catch(() => showToast('Microphone permission denied'));
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    recordBtn.classList.remove('recording');
+    recordLabel.textContent = 'Record Voice Memo';
+    audioWaves.style.display = 'none';
+    clearInterval(recordingTimer);
+  }
+}
+
+recordBtn.onclick = () => {
+  if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
+  else startRecording();
+};
+
+function animateWaves() {
+  const bars = audioWaves.querySelectorAll('.wave-bar');
+  recordingTimer = setInterval(() => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      bars.forEach(bar => {
+        bar.style.height = (8 + Math.random() * 32) + 'px';
+      });
+    }
+  }, 80);
+}
+
+function renderAudioPlayers() {
+  audioPlayers.innerHTML = '';
+  state.pendingAudios.forEach((a, i) => {
+    const div = document.createElement('div');
+    div.className = 'audio-player';
+    div.innerHTML = `
+      <audio controls src="${a.url}"></audio>
+      <button onclick="removeAudio(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;">&#10005;</button>
+    `;
+    audioPlayers.appendChild(div);
+  });
+}
+
+window.removeAudio = function(i) {
+  URL.revokeObjectURL(state.pendingAudios[i].url);
+  state.pendingAudios.splice(i, 1);
+  renderAudioPlayers();
+};
+
+// ═══════════════════════════════════════════════════════════
+// FILE HANDLING
+// ═══════════════════════════════════════════════════════════
+const fileDropZone = document.getElementById('file-drop-zone');
+const fileInput = document.getElementById('file-input');
+const attachmentsList = document.getElementById('attachments-list');
+
+fileDropZone.onclick = () => fileInput.click();
+
+fileDropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  fileDropZone.classList.add('drag-active');
+});
+fileDropZone.addEventListener('dragleave', () => fileDropZone.classList.remove('drag-active'));
+fileDropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  fileDropZone.classList.remove('drag-active');
+  handleFiles(e.dataTransfer.files);
+});
+
+fileInput.onchange = () => {
+  handleFiles(fileInput.files);
+  fileInput.value = '';
+};
+
+function handleFiles(files) {
+  Array.from(files).forEach(file => {
+    const isAudio = file.type.startsWith('audio/');
+    if (isAudio) {
+      const url = URL.createObjectURL(file);
+      state.pendingAudios.push({ blob: file, url });
+      renderAudioPlayers();
+      showToast(`Audio "${file.name}" added`);
+    } else {
+      const reader = new FileReader();
+      reader.onload = e => {
+        state.pendingFiles.push({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          dataUrl: e.target.result,
+        });
+        renderAttachments();
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+}
+
+function renderAttachments() {
+  attachmentsList.innerHTML = '';
+  state.pendingFiles.forEach((f, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'attachment-chip';
+    const icon = getFileIcon(f.type, f.name);
+    const size = formatSize(f.size);
+    chip.innerHTML = `
+      <span>${icon}</span>
+      <span class="chip-name" title="${f.name}">${f.name}</span>
+      <span style="color:var(--text-dim);font-size:10px;">${size}</span>
+      <span class="chip-remove" onclick="removeAttachment(${i})">&#10005;</span>
+    `;
+    attachmentsList.appendChild(chip);
+  });
+}
+
+window.removeAttachment = function(i) {
+  state.pendingFiles.splice(i, 1);
+  renderAttachments();
+};
+
+function getFileIcon(type, name) {
+  if (type.startsWith('image/')) return '&#128247;';
+  if (type.startsWith('audio/')) return '&#127908;';
+  if (type.startsWith('video/')) return '&#127909;';
+  if (type.includes('pdf')) return '&#128196;';
+  if (type.includes('word') || type.includes('document')) return '&#128196;';
+  if (type.includes('sheet') || type.includes('excel')) return '&#128200;';
+  if (type.includes('zip') || type.includes('archive')) return '&#128230;';
+  if (name.endsWith('.md') || name.endsWith('.txt')) return '&#128221;';
+  return '&#128196;';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
+  return (bytes / 1024 / 1024).toFixed(1) + 'MB';
+}
+
+// ═══════════════════════════════════════════════════════════
+// GLOBAL DROP ZONE — drop files anywhere on the page
+// ═══════════════════════════════════════════════════════════
+const dropOverlay = document.getElementById('drop-overlay');
+let isDraggingGlobal = false;
+
+document.addEventListener('dragenter', e => {
+  if (e.dataTransfer.types.includes('Files')) {
+    isDraggingGlobal = true;
+    dropOverlay.classList.add('visible');
+  }
+});
+
+document.addEventListener('dragleave', e => {
+  if (!e.relatedTarget) {
+    isDraggingGlobal = false;
+    dropOverlay.classList.remove('visible');
+  }
+});
+
+document.addEventListener('dragover', e => {
+  if (isDraggingGlobal) e.preventDefault();
+});
+
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  isDraggingGlobal = false;
+  dropOverlay.classList.remove('visible');
+  handleFiles(e.dataTransfer.files);
+});
+
+// ═══════════════════════════════════════════════════════════
+// RENDER BOARD
+// ═══════════════════════════════════════════════════════════
+function render() {
+  const board = document.getElementById('board-wrapper');
+  board.innerHTML = '';
+
+  state.columns.forEach((col, colIdx) => {
+    const colEl = document.createElement('div');
+    colEl.className = 'column';
+    colEl.dataset.colId = col.id;
+
+    colEl.innerHTML = `
+      <div class="col-header">
+        <div class="col-dot" style="background:${col.color}"></div>
+        <div class="col-title">${escHtml(col.title)}</div>
+        <div class="col-count">${col.cards.length}</div>
+      </div>
+      <div class="cards" data-col="${col.id}">
+        ${col.cards.map(card => renderCard(card)).join('')}
+      </div>
+      <button class="add-card-btn" data-col="${col.id}">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add task
+      </button>
+    `;
+
+    board.appendChild(colEl);
+  });
+
+  // Add column button
+  const addColBtn = document.createElement('button');
+  addColBtn.className = 'add-column-btn';
+  addColBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Column`;
+  addColBtn.onclick = openColModal;
+  board.appendChild(addColBtn);
+
+  // Wire up event listeners
+  wireBoardEvents();
+}
+
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function renderCard(card) {
+  const badge = getCardBadge(card);
+  const preview = card.description ? `<div class="card-preview">${escHtml(card.description)}</div>` : '';
+  const attBadge = card.attachments?.length || card.audioCount ?
+    renderAttBadges(card) : '';
+  const date = card.createdAt ? `<span class="card-date">${formatDate(card.createdAt)}</span>` : '';
+
+  return `
+    <div class="card" draggable="true" data-card-id="${card.id}"
+         ontouchstart="onTouchStart(event, '${card.id}')"
+         ontouchmove="onTouchMove(event)"
+         ontouchend="onTouchEnd(event)">
+      <button class="card-delete" onclick="deleteCard('${card.id}')">&#10005;</button>
+      <div class="card-title ${card.title ? '' : 'placeholder'}">${card.title || 'Untitled task'}</div>
+      ${preview}
+      ${attBadge}
+      <div class="card-footer">
+        ${badge}
+        ${date}
+      </div>
+    </div>
+  `;
+}
+
+function getCardBadge(card) {
+  if (!card.title && !card.description) {
+    return '<span class="card-badge">Empty task</span>';
+  }
+  return '';
+}
+
+function renderAttBadges(card) {
+  let badges = '';
+  const atts = card.attachments || [];
+  if (atts.some(a => a.type?.startsWith('image/'))) badges += '<span class="card-badge image">&#128247; Image</span>';
+  if (atts.some(a => a.type?.startsWith('audio/'))) badges += '<span class="card-badge audio">&#127908; Audio</span>';
+  const files = atts.filter(a => !a.type?.startsWith('image/') && !a.type?.startsWith('audio/'));
+  if (files.length) badges += `<span class="card-badge file">&#128196; ${files.length} file${files.length > 1 ? 's' : ''}</span>`;
+  return badges ? `<div class="card-attachments">${badges}</div>` : '';
+}
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+  return d.toLocaleDateString();
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOARD EVENTS (drag-drop, clicks)
+// ═══════════════════════════════════════════════════════════
+let dragGhost = null;
+let dragSourceCard = null;
+let touchStartPos = null;
+let touchCardId = null;
+let touchColId = null;
+let longPressTimer = null;
+
+function wireBoardEvents() {
+  // Add card buttons
+  document.querySelectorAll('.add-card-btn').forEach(btn => {
+    btn.onclick = () => openCardModal(btn.dataset.col);
+  });
+
+  // Cards — dragstart, dragover, drop
+  document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('dragstart', onDragStart);
+    card.addEventListener('dragend', onDragEnd);
+
+    // Right-click / long-press context menu
+    card.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      openContextMenu(e, card.dataset.cardId);
+    });
+    // Long press on mobile
+    card.addEventListener('touchstart', e => {
+      touchCardId = card.dataset.cardId;
+      longPressTimer = setTimeout(() => {
+        openContextMenuAt(touchCardId);
+      }, 600);
+    }, { passive: true });
+    card.addEventListener('touchmove', () => clearTimeout(longPressTimer), { passive: true });
+    card.addEventListener('touchend', () => clearTimeout(longPressTimer), { passive: true });
+
+    // Click to edit
+    card.onclick = e => {
+      if (e.target.classList.contains('card-delete') || e.target.closest('.card-delete')) return;
+      openCardModal(null, card.dataset.cardId);
+    };
+  });
+
+  // Cards container — dragover / drop
+  document.querySelectorAll('.cards').forEach(container => {
+    container.addEventListener('dragover', onDragOver);
+    container.addEventListener('dragleave', onDragLeave);
+    container.addEventListener('drop', onDrop);
+  });
+
+  // Column headers — right-click to rename/delete
+  document.querySelectorAll('.col-header').forEach(header => {
+    header.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      const colId = header.parentElement.dataset.colId;
+      openColContextMenu(e, colId);
+    });
+  });
+
+  // Column header double-click to rename
+  header.ondblclick = null;
+  // Handled via context menu for now
+}
+
+document.querySelectorAll('.col-header').forEach(header => {
+  header.addEventListener('dblclick', () => {
+    const colId = header.parentElement.dataset.colId;
+    openColModal(colId);
+  });
+});
+
+// Touch drag support
+window.onTouchStart = function(e, cardId) {
+  touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  touchCardId = cardId;
+};
+
+window.onTouchMove = function(e) {
+  if (!touchStartPos || !touchCardId) return;
+  const dx = Math.abs(e.touches[0].clientX - touchStartPos.x);
+  const dy = Math.abs(e.touches[0].clientY - touchStartPos.y);
+  if (dx > 10 || dy > 10) clearTimeout(longPressTimer);
+};
+
+window.onTouchEnd = function(e) {
+  clearTimeout(longPressTimer);
+  if (!touchCardId) return;
+  const cards = document.querySelector(`.cards[data-col="${touchColId}"]`);
+  if (cards && touchCardId) {
+    moveCard(touchCardId, touchColId, touchColId);
+  }
+  touchCardId = null;
+  touchStartPos = null;
+};
+
+// Desktop drag
+function onDragStart(e) {
+  dragSourceCard = e.target;
+  const cardId = e.target.dataset.cardId;
+  state.draggingCard = cardId;
+  state.draggingFromCol = e.target.closest('.column').dataset.colId;
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', cardId);
+}
+
+function onDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.cards').forEach(c => c.classList.remove('drag-over'));
+  state.draggingCard = null;
+  state.draggingFromCol = null;
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+function onDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const cardId = e.dataTransfer.getData('text/plain');
+  const targetColId = e.currentTarget.dataset.col;
+  moveCard(cardId, targetColId);
+}
+
+// Move card to a column (optionally at a specific index)
+function moveCard(cardId, targetColId, insertBeforeCardId) {
+  let card = null;
+  let sourceCol = null;
+
+  for (const col of state.columns) {
+    const idx = col.cards.findIndex(c => c.id === cardId);
+    if (idx !== -1) {
+      card = col.cards.splice(idx, 1)[0];
+      sourceCol = col;
+      break;
+    }
+  }
+  if (!card) return;
+
+  const targetCol = state.columns.find(c => c.id === targetColId);
+  if (!targetCol) return;
+
+  // Find insert position
+  if (insertBeforeCardId && insertBeforeCardId !== targetColId) {
+    const insertIdx = targetCol.cards.findIndex(c => c.id === insertBeforeCardId);
+    if (insertIdx !== -1) {
+      targetCol.cards.splice(insertIdx, 0, card);
+    } else {
+      targetCol.cards.push(card);
+    }
+  } else {
+    targetCol.cards.push(card);
+  }
+
+  saveState();
+  render();
+  showToast(`Moved to ${targetCol.title}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CARD MODAL
+// ═══════════════════════════════════════════════════════════
+const cardModal = document.getElementById('card-modal');
+const modalTitle = document.getElementById('modal-title');
+const cardTitleInput = document.getElementById('card-title-input');
+const cardDescInput = document.getElementById('card-desc-input');
+const cardColSelect = document.getElementById('card-col-select');
+const modalDeleteBtn = document.getElementById('modal-delete');
+const modalSaveBtn = document.getElementById('modal-save');
+const modalCancelBtn = document.getElementById('modal-cancel');
+
+function openCardModal(colId, cardId = null) {
+  state.editingCardId = cardId;
+  state.pendingFiles = [];
+  state.pendingAudios = [];
+  renderAttachments();
+  renderAudioPlayers();
+
+  // Populate column selector
+  cardColSelect.innerHTML = state.columns.map(c =>
+    `<option value="${c.id}" ${c.id === colId ? 'selected' : ''}>${escHtml(c.title)}</option>`
+  ).join('');
+
+  if (cardId) {
+    // Edit mode
+    let card = null;
+    for (const col of state.columns) {
+      card = col.cards.find(c => c.id === cardId);
+      if (card) break;
+    }
+    if (card) {
+      modalTitle.textContent = 'Edit Task';
+      cardTitleInput.value = card.title || '';
+      cardDescInput.value = card.description || '';
+      cardColSelect.value = card.columnId || colId;
+      modalDeleteBtn.style.display = 'block';
+
+      // Load existing attachments
+      state.pendingFiles = (card.attachments || []).map(a => ({ ...a }));
+      renderAttachments();
+    }
+  } else {
+    // New mode
+    modalTitle.textContent = 'New Task';
+    cardTitleInput.value = '';
+    cardDescInput.value = '';
+    modalDeleteBtn.style.display = 'none';
+  }
+
+  cardModal.classList.add('open');
+  setTimeout(() => cardTitleInput.focus(), 100);
+}
+
+function closeCardModal() {
+  cardModal.classList.remove('open');
+  state.editingCardId = null;
+  state.pendingFiles = [];
+  state.pendingAudios = [];
+}
+
+modalCancelBtn.onclick = closeCardModal;
+cardModal.onclick = e => {
+  if (e.target === cardModal) closeCardModal();
+};
+
+modalSaveBtn.onclick = () => {
+  const title = cardTitleInput.value.trim();
+  const description = cardDescInput.value.trim();
+  const colId = cardColSelect.value;
+
+  if (!title && !description && state.pendingFiles.length === 0 && state.pendingAudios.length === 0) {
+    showToast('Add a title, description, or attachment');
+    return;
+  }
+
+  if (state.editingCardId) {
+    // Update existing card
+    for (const col of state.columns) {
+      const card = col.cards.find(c => c.id === state.editingCardId);
+      if (card) {
+        // If column changed, move card
+        if (card.columnId !== colId) {
+          const idx = col.cards.indexOf(card);
+          col.cards.splice(idx, 1);
+          const targetCol = state.columns.find(c => c.id === colId);
+          if (targetCol) targetCol.cards.push(card);
+        }
+        card.title = title;
+        card.description = description;
+        card.attachments = [...state.pendingFiles];
+        card.audioCount = state.pendingAudios.length;
+        card.updatedAt = Date.now();
+        break;
+      }
+    }
+    showToast('Task updated');
+  } else {
+    // New card
+    const col = state.columns.find(c => c.id === colId);
+    if (!col) return;
+    const newCard = {
+      id: 'c' + Date.now() + Math.random().toString(36).slice(2, 7),
+      title,
+      description,
+      columnId: colId,
+      attachments: [...state.pendingFiles],
+      audioCount: state.pendingAudios.length,
+      createdAt: Date.now(),
+    };
+    col.cards.push(newCard);
+    showToast('Task added');
+  }
+
+  saveState();
+  closeCardModal();
+  render();
+};
+
+modalDeleteBtn.onclick = () => {
+  if (!state.editingCardId) return;
+  for (const col of state.columns) {
+    const idx = col.cards.findIndex(c => c.id === state.editingCardId);
+    if (idx !== -1) {
+      col.cards.splice(idx, 1);
+      break;
+    }
+  }
+  saveState();
+  closeCardModal();
+  render();
+  showToast('Task deleted');
+};
+
+// ═══════════════════════════════════════════════════════════
+// COLUMN MODAL
+// ═══════════════════════════════════════════════════════════
+const colModal = document.getElementById('col-modal');
+const colNameInput = document.getElementById('col-name-input');
+const colModalSaveBtn = document.getElementById('col-modal-save');
+const colModalCancelBtn = document.getElementById('col-modal-cancel');
+
+function openColModal(editColId = null) {
+  state.editingColId = editColId;
+  if (editColId) {
+    const col = state.columns.find(c => c.id === editColId);
+    if (col) {
+      colNameInput.value = col.title;
+      state.newColColor = col.color;
+      colModalSaveBtn.textContent = 'Save Changes';
+      document.querySelector('#col-modal h2').textContent = 'Edit Column';
+    }
+  } else {
+    colNameInput.value = '';
+    state.newColColor = '#7C6AFF';
+    colModalSaveBtn.textContent = 'Add Column';
+    document.querySelector('#col-modal h2').textContent = 'New Column';
+  }
+  updateColorBtns();
+  colModal.classList.add('open');
+  setTimeout(() => colNameInput.focus(), 100);
+}
+
+function closeColModal() {
+  colModal.classList.remove('open');
+  state.editingColId = null;
+}
+
+colModalCancelBtn.onclick = closeColModal;
+colModal.onclick = e => {
+  if (e.target === colModal) closeColModal();
+};
+
+colModalSaveBtn.onclick = () => {
+  const name = colNameInput.value.trim();
+  if (!name) {
+    showToast('Column needs a name');
+    return;
+  }
+
+  if (state.editingColId) {
+    const col = state.columns.find(c => c.id === state.editingColId);
+    if (col) {
+      col.title = name;
+      col.color = state.newColColor;
+    }
+    showToast('Column updated');
+  } else {
+    state.columns.push({
+      id: 'col' + Date.now(),
+      title: name,
+      color: state.newColColor,
+      cards: [],
+    });
+    showToast('Column added');
+  }
+
+  saveState();
+  closeColModal();
+  render();
+};
+
+// Color picker
+document.querySelectorAll('.col-color-btn').forEach(btn => {
+  btn.onclick = () => {
+    state.newColColor = btn.dataset.color;
+    updateColorBtns();
+  };
+});
+
+function updateColorBtns() {
+  document.querySelectorAll('.col-color-btn').forEach(btn => {
+    btn.style.borderColor = btn.dataset.color === state.newColColor ? '#fff' : '#2a2a35';
+    btn.style.transform = btn.dataset.color === state.newColColor ? 'scale(1.15)' : 'scale(1)';
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONTEXT MENU
+// ═══════════════════════════════════════════════════════════
+const contextMenu = document.getElementById('context-menu');
+let contextCardId = null;
+let contextColId = null;
+
+function openContextMenu(e, cardId) {
+  contextCardId = cardId;
+  contextColId = null;
+  contextMenu.style.left = Math.min(e.clientX, window.innerWidth - 170) + 'px';
+  contextMenu.style.top = Math.min(e.clientY, window.innerHeight - 160) + 'px';
+  contextMenu.classList.add('open');
+}
+
+function openContextMenuAt(cardId) {
+  contextCardId = cardId;
+  contextColId = null;
+  const card = document.querySelector(`[data-card-id="${cardId}"]`);
+  if (card) {
+    const rect = card.getBoundingClientRect();
+    contextMenu.style.left = Math.min(rect.left, window.innerWidth - 170) + 'px';
+    contextMenu.style.top = Math.min(rect.bottom + 4, window.innerHeight - 160) + 'px';
+    contextMenu.classList.add('open');
+  }
+}
+
+function openColContextMenu(e, colId) {
+  contextColId = colId;
+  contextCardId = null;
+  contextMenu.style.left = Math.min(e.clientX, window.innerWidth - 170) + 'px';
+  contextMenu.style.top = Math.min(e.clientY, window.innerHeight - 120) + 'px';
+  contextMenu.classList.add('open');
+}
+
+document.addEventListener('click', () => contextMenu.classList.remove('open'));
+
+contextMenu.onclick = e => {
+  const action = e.target.closest('.context-item')?.dataset.action;
+  if (!action) return;
+
+  if (contextCardId) {
+    switch (action) {
+      case 'edit': openCardModal(null, contextCardId); break;
+      case 'delete':
+        for (const col of state.columns) {
+          const idx = col.cards.findIndex(c => c.id === contextCardId);
+          if (idx !== -1) { col.cards.splice(idx, 1); break; }
+        }
+        saveState();
+        render();
+        showToast('Task deleted');
+        break;
+      case 'move-left': moveCardToAdjacent(contextCardId, -1); break;
+      case 'move-right': moveCardToAdjacent(contextCardId, 1); break;
+    }
+  } else if (contextColId) {
+    switch (action) {
+      case 'edit': openColModal(contextColId); break;
+      case 'delete':
+        const colIdx = state.columns.findIndex(c => c.id === contextColId);
+        if (colIdx !== -1) {
+          state.columns.splice(colIdx, 1);
+          saveState();
+          render();
+          showToast('Column deleted');
+        }
+        break;
+    }
+  }
+  contextMenu.classList.remove('open');
+};
+
+function moveCardToAdjacent(cardId, direction) {
+  // Find current column index
+  let currentColIdx = -1;
+  let cardIndex = -1;
+  for (let i = 0; i < state.columns.length; i++) {
+    const idx = state.columns[i].cards.findIndex(c => c.id === cardId);
+    if (idx !== -1) { currentColIdx = i; cardIndex = idx; break; }
+  }
+  if (currentColIdx === -1) return;
+
+  const targetColIdx = currentColIdx + direction;
+  if (targetColIdx < 0 || targetColIdx >= state.columns.length) return;
+
+  const card = state.columns[currentColIdx].cards.splice(cardIndex, 1)[0];
+  state.columns[targetColIdx].cards.push(card);
+  card.columnId = state.columns[targetColIdx].id;
+  saveState();
+  render();
+  showToast(`Moved to ${state.columns[targetColIdx].title}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeCardModal();
+    closeColModal();
+    contextMenu.classList.remove('open');
+    return;
+  }
+  // Don't trigger shortcuts when typing in inputs
+  if (e.target.matches('input, textarea, select')) return;
+
+  if (e.key === 'n' || e.key === 'N') {
+    e.preventDefault();
+    openCardModal(state.columns[0]?.id || 'ideas');
+  }
+  if (e.key === 'r' || e.key === 'R') {
+    e.preventDefault();
+    if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
+    else startRecording();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GLOBAL "QUICK ADD" — header button
+// ═══════════════════════════════════════════════════════════
+document.getElementById('add-card-header-btn').onclick = () => {
+  openCardModal(state.columns[0]?.id || 'ideas');
+};
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+loadState();
+render();
+</script>
+</body>
+</html>

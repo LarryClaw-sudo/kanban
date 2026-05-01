@@ -1,0 +1,10 @@
+{
+  "name": "Kavi Labs Kanban",
+  "short_name": "Kanban",
+  "description": "Super intuitive drag-and-drop kanban board for tasks, files, and voice memos.",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#0D0D10",
+  "theme_color": "#7C6AFF",
+  "icons": []
+}
